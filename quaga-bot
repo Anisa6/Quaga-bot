@@ -1,0 +1,77 @@
+import asyncio
+import logging
+import requests
+
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.types import ContentType
+from aiogram.utils.deep_linking import decode_payload
+from aiogram.types import Message
+
+
+from database import add_user, add_user_name, add_user_numb, get_user_name, get_user_numb
+
+from aiogram.filters.command import Command, CommandStart
+
+BOT_TOKEN = 'BOT_TOKEN'
+
+
+#экземпляры бота
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+
+
+#res = requests.post('http://91.204.253.192:45219/', headers={'Authorization'})
+@dp.message(Command('start'))
+async def handler(message: Message):
+    await message.answer('Привет!Я - Quagga Bot. Помогу Вам с подгрузкой файлов.')
+    await message.answer_sticker('CAACAgIAAxkBAAEC995lq9k1KaSu0OC2siEwYyPNDkn2yQACz0QAAtWfYUkkkqVr8DGgkzQE')
+    # args = message.get_args()
+    #payload = decode_payload(args)
+
+    token = message.text.split(' ')
+    if len(token) == 2:
+        res = requests.post('SERVER_ADDRESS', headers={'Authorization': token[1]})
+        if 'pair_token' in res.json():
+            pair_token = res.json()['pair_token']
+            res2 = requests.post('SERVER_ADDRES',data = {'pairtoken': pair_token,'tgid': message.from_user.id}, headers = {'Content-Type': 'application/x-www-form-urlencoded'})
+            print(res2.json())
+            await message.answer(f"Сейчас произойдёт вход")
+
+        else:
+            await message.answer(f"Не получилось войти")
+    else:
+        await message.answer(f"Не получилось войти")
+        return False
+
+
+
+
+
+
+@dp.message(F.document)
+async def read_file(message: types.Message):
+    try:
+        file_id = message.document.file_id
+        file = await bot.get_file(file_id)
+        filename = file.file_path.split("/")[len(file.file_path.split("/")) - 1]
+        name = filename.split('.')[0]
+        extension = filename.split('.')[1]
+        requests.post('http://91.204.253.192:45219/uploadFile',
+                            data={'tgid': message.from_user.id, 'file': file, 'name': name,
+                                   'extension': extension},
+                            headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        await bot.send_message(message.from_user.id, 'Вам повезло, файл загрузился')
+    except:
+        await bot.send_message(message.from_user.id, 'Произошла ошибка')
+
+
+
+#запуск
+async def main():
+    logging.basicConfig(level = logging.INFO)
+    #bot = Bot(token=config.BOR_TOKEN)
+    await dp.start_polling(bot) #опрос бота
+
+if __name__ == '__main__':
+    asyncio.run(main())
